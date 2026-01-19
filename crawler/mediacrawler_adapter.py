@@ -397,6 +397,7 @@ class MediaCrawlerAdapter:
         xsec_source: str = "pc_feed",
         max_count: int = 100,
         crawl_interval: float = 2.0,
+        since_time: Optional[int] = None,
     ) -> List[NoteInfo]:
         """获取博主的笔记列表（通过 API）
 
@@ -406,19 +407,24 @@ class MediaCrawlerAdapter:
             xsec_source: 来源
             max_count: 最大抓取数量
             crawl_interval: 抓取间隔(秒)
+            since_time: 只获取此时间戳(毫秒)之后发布的笔记，None 表示获取全部
 
         Returns:
             NoteInfo 列表
         """
         notes = []
+        reached_old_notes = False  # 是否已到达旧笔记
 
         try:
-            logger.info(f"获取博主笔记列表: {user_id} (最多 {max_count} 条)")
+            if since_time:
+                logger.info(f"获取博主笔记列表: {user_id} (增量模式，只获取 {since_time} 之后的笔记)")
+            else:
+                logger.info(f"获取博主笔记列表: {user_id} (全量模式，最多 {max_count} 条)")
 
             notes_has_more = True
             notes_cursor = ""
 
-            while notes_has_more and len(notes) < max_count:
+            while notes_has_more and len(notes) < max_count and not reached_old_notes:
                 # 随机延迟
                 await asyncio.sleep(crawl_interval + random.uniform(0, 1))
 
@@ -450,9 +456,17 @@ class MediaCrawlerAdapter:
                         break
 
                     note = self._convert_note_from_list(item, user_id)
+
+                    # 增量模式：检查笔记发布时间
+                    if since_time and note.publish_time:
+                        if note.publish_time <= since_time:
+                            logger.info(f"遇到旧笔记 {note.note_id}，停止抓取")
+                            reached_old_notes = True
+                            break
+
                     notes.append(note)
 
-            logger.info(f"共获取 {len(notes)} 条笔记")
+            logger.info(f"共获取 {len(notes)} 条新笔记")
 
         except Exception as e:
             logger.error(f"获取笔记列表失败: {e}")
@@ -468,6 +482,13 @@ class MediaCrawlerAdapter:
         # 解析互动信息
         interact_info = item.get("interact_info", {})
 
+        # 解析发布时间（可能是 time, timestamp, 或 create_time）
+        publish_time = (
+            item.get("time")
+            or item.get("timestamp")
+            or item.get("create_time")
+        )
+
         return NoteInfo(
             note_id=note_id,
             blogger_id=user_id,
@@ -476,6 +497,7 @@ class MediaCrawlerAdapter:
             type="video" if item.get("type") == "video" else "normal",
             cover_url=item.get("cover", {}).get("url", "") if isinstance(item.get("cover"), dict) else "",
             liked_count=self._parse_count(interact_info.get("liked_count", 0)),
+            publish_time=publish_time,
             xsec_token=item.get("xsec_token", ""),
             xsec_source=item.get("xsec_source", "pc_feed"),
         )
@@ -657,6 +679,7 @@ class MediaCrawlerAdapter:
         max_count: int = 100,
         crawl_interval: float = 2.0,
         fetch_comments: bool = True,
+        since_time: Optional[int] = None,
     ) -> Tuple[List[NoteInfo], List[CommentInfo]]:
         """获取博主的笔记列表及详情
 
@@ -667,6 +690,7 @@ class MediaCrawlerAdapter:
             max_count: 最大抓取数量
             crawl_interval: 抓取间隔(秒)
             fetch_comments: 是否获取评论
+            since_time: 只获取此时间戳(毫秒)之后发布的笔记，None 表示获取全部
 
         Returns:
             (NoteInfo 列表, CommentInfo 列表)
@@ -674,13 +698,14 @@ class MediaCrawlerAdapter:
         all_notes = []
         all_comments = []
 
-        # 获取笔记列表
+        # 获取笔记列表（支持增量抓取）
         notes = await self.get_blogger_notes(
             user_id=user_id,
             xsec_token=xsec_token,
             xsec_source=xsec_source,
             max_count=max_count,
             crawl_interval=crawl_interval,
+            since_time=since_time,
         )
 
         # 获取每条笔记的详情和评论

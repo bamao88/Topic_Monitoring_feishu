@@ -100,6 +100,13 @@ async def sync_single_blogger(
 
     logger.info(f"开始同步博主: {name or user_id}")
 
+    # 获取上次同步时间（用于增量抓取）
+    last_sync_at = feishu_sync.get_blogger_last_sync_at(user_id)
+    if last_sync_at:
+        logger.info(f"上次同步时间: {last_sync_at}，将只抓取此后的新笔记")
+    else:
+        logger.info("首次同步，将抓取全部笔记")
+
     # 1. 获取博主信息
     blogger_info = await crawler.get_blogger_info(
         user_id=user_id,
@@ -115,7 +122,7 @@ async def sync_single_blogger(
 
     await asyncio.sleep(CRAWLER_MAX_SLEEP_SEC)
 
-    # 2. 获取博主笔记和评论
+    # 2. 获取博主笔记和评论（增量模式）
     notes, comments = await crawler.get_blogger_notes_with_details(
         user_id=user_id,
         xsec_token=xsec_token,
@@ -123,6 +130,7 @@ async def sync_single_blogger(
         max_count=CRAWLER_MAX_NOTES_COUNT,
         crawl_interval=CRAWLER_MAX_SLEEP_SEC,
         fetch_comments=sync_comments,
+        since_time=last_sync_at,  # 增量抓取：只获取上次同步后的新笔记
     )
 
     # 3. 同步笔记

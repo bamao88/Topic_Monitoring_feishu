@@ -1,5 +1,5 @@
 """飞书多维表格同步逻辑"""
-from typing import Dict, List, Any, Optional, Set
+from typing import Dict, List, Any, Optional
 from datetime import datetime
 from .client import FeishuClient
 from utils import logger
@@ -10,17 +10,18 @@ class FeishuTableSync:
 
     def __init__(self):
         self.client = FeishuClient()
-        # 缓存已存在的记录ID，用于增量更新
-        self._existing_note_ids: Set[str] = set()
-        self._existing_comment_ids: Set[str] = set()
+        # 博主数据缓存（用于获取 last_sync_at）
         self._blogger_record_map: Dict[str, str] = {}  # blogger_id -> record_id
         self._blogger_data_cache: Dict[str, Dict[str, Any]] = {}  # blogger_id -> full data
 
     def load_existing_data(self):
-        """加载已存在的数据ID，用于增量更新"""
-        logger.info("正在加载已存在的数据...")
+        """加载已存在的博主数据（用于获取 last_sync_at 进行增量抓取）
 
-        # 加载博主数据
+        注意：笔记和评论不再全量加载，因为使用增量抓取模式
+        """
+        logger.info("正在加载博主数据...")
+
+        # 只加载博主数据（需要获取 last_sync_at）
         bloggers = self.client.get_all_records("bloggers")
         for b in bloggers:
             blogger_id = b.get("blogger_id")
@@ -29,21 +30,8 @@ class FeishuTableSync:
                 self._blogger_data_cache[blogger_id] = b  # 缓存完整数据
         logger.info(f"已加载 {len(self._blogger_record_map)} 个博主记录")
 
-        # 加载笔记ID
-        notes = self.client.get_all_records("notes")
-        for n in notes:
-            note_id = n.get("note_id")
-            if note_id:
-                self._existing_note_ids.add(note_id)
-        logger.info(f"已加载 {len(self._existing_note_ids)} 条笔记记录")
-
-        # 加载评论ID
-        comments = self.client.get_all_records("comments")
-        for c in comments:
-            comment_id = c.get("comment_id")
-            if comment_id:
-                self._existing_comment_ids.add(comment_id)
-        logger.info(f"已加载 {len(self._existing_comment_ids)} 条评论记录")
+        # 笔记和评论不再预加载，使用增量抓取模式
+        # 增量抓取基于博主的 last_sync_at 时间，只抓取新笔记
 
     def sync_blogger(self, blogger_data: Dict[str, Any]) -> str:
         """同步博主信息
@@ -86,88 +74,62 @@ class FeishuTableSync:
             return ""
 
     def sync_notes(self, notes: List[Dict[str, Any]]) -> int:
-        """同步笔记数据
+        """同步笔记数据（增量模式，直接创建新笔记）
 
         Args:
-            notes: 笔记列表
+            notes: 笔记列表（增量抓取，理论上都是新笔记）
 
         Returns:
             新增笔记数
         """
-        new_notes = []
-        update_notes = []
+        if not notes:
+            return 0
 
+        # 添加抓取时间
         for note in notes:
-            note_id = note.get("note_id")
-            if not note_id:
-                continue
-
-            # 添加抓取时间
             note["crawl_time"] = int(datetime.now().timestamp() * 1000)
 
-            if note_id in self._existing_note_ids:
-                # 已存在，更新互动数据
-                existing = self.client.find_record_by_field("notes", "note_id", note_id)
-                if existing:
-                    note["record_id"] = existing["record_id"]
-                    update_notes.append(note)
-            else:
-                # 新笔记
-                new_notes.append(note)
-                self._existing_note_ids.add(note_id)
+        # 直接批量创建（增量抓取保证都是新笔记）
+        self.client.create_records("notes", notes)
+        logger.info(f"新增 {len(notes)} 条笔记")
 
-        # 批量创建新笔记
-        if new_notes:
-            self.client.create_records("notes", new_notes)
-            logger.info(f"新增 {len(new_notes)} 条笔记")
-
-        # 批量更新已存在的笔记
-        if update_notes:
-            self.client.update_records("notes", update_notes)
-            logger.info(f"更新 {len(update_notes)} 条笔记互动数据")
-
-        return len(new_notes)
+        return len(notes)
 
     def sync_comments(self, comments: List[Dict[str, Any]]) -> int:
-        """同步评论数据
+        """同步评论数据（增量模式，直接创建新评论）
 
         Args:
-            comments: 评论列表
+            comments: 评论列表（来自新笔记，理论上都是新评论）
 
         Returns:
             新增评论数
         """
-        new_comments = []
+        if not comments:
+            return 0
 
+        # 添加抓取时间
         for comment in comments:
-            comment_id = comment.get("comment_id")
-            if not comment_id:
-                continue
+            comment["crawl_time"] = int(datetime.now().timestamp() * 1000)
 
-            if comment_id not in self._existing_comment_ids:
-                # 新评论
-                comment["crawl_time"] = int(datetime.now().timestamp() * 1000)
-                new_comments.append(comment)
-                self._existing_comment_ids.add(comment_id)
+        # 分批处理，每批最多500条
+        batch_size = 500
+        for i in range(0, len(comments), batch_size):
+            batch = comments[i:i + batch_size]
+            self.client.create_records("comments", batch)
 
-        # 批量创建新评论
-        if new_comments:
-            # 分批处理，每批最多500条
-            batch_size = 500
-            for i in range(0, len(new_comments), batch_size):
-                batch = new_comments[i:i + batch_size]
-                self.client.create_records("comments", batch)
+        logger.info(f"新增 {len(comments)} 条评论")
 
-            logger.info(f"新增 {len(new_comments)} 条评论")
-
-        return len(new_comments)
+        return len(comments)
 
     def get_stats(self) -> Dict[str, int]:
-        """获取当前数据统计"""
+        """获取当前数据统计（从飞书实时查询）"""
+        # 实时查询飞书获取统计数据
+        notes_count = len(self.client.get_all_records("notes"))
+        comments_count = len(self.client.get_all_records("comments"))
         return {
             "bloggers": len(self._blogger_record_map),
-            "notes": len(self._existing_note_ids),
-            "comments": len(self._existing_comment_ids),
+            "notes": notes_count,
+            "comments": comments_count,
         }
 
     def get_blogger_last_sync_at(self, blogger_id: str) -> Optional[int]:
