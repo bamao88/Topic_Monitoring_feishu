@@ -105,7 +105,11 @@ async def sync_single_blogger(
     if last_sync_at:
         logger.info(f"上次同步时间: {last_sync_at}，将只抓取此后的新笔记")
     else:
-        logger.info("首次同步，将抓取全部笔记")
+        # 首次同步：只抓取近6个月的笔记
+        from datetime import datetime, timedelta
+        six_months_ago = datetime.now() - timedelta(days=180)
+        last_sync_at = int(six_months_ago.timestamp() * 1000)
+        logger.info(f"首次同步，将只抓取近6个月的笔记 (since: {last_sync_at})")
 
     # 1. 获取博主信息
     blogger_info = await crawler.get_blogger_info(
