@@ -61,7 +61,7 @@ class NoteInfo(BaseModel):
             "collected_count": self.collected_count,
             "comment_count": self.comment_count,
             "share_count": self.share_count,
-            "note_url": f"https://www.xiaohongshu.com/explore/{self.note_id}",
+            "note_url": {"link": f"https://www.xiaohongshu.com/explore/{self.note_id}"},
         }
         if self.publish_time:
             record["publish_time"] = self.publish_time

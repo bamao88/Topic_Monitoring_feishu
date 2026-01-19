@@ -18,8 +18,8 @@
 
 bloggers:
   # 测试博主
-  - url: "https://www.xiaohongshu.com/user/profile/5c77fdd70000000011019f74?xsec_token=ABXOGKTqOMf81ZVrKMbXNYDPuVFfj51JmF4T04sJ-UO30=&xsec_source=pc_search"
-    name: "测试博主"
+  - url: "https://www.xiaohongshu.com/user/profile/615ba25b0000000002018b88?xsec_token=ABfI-yYiaKrl6hzNP_rrCL6sgRh0LGVTAkaGcp1twaosQ=&xsec_source=pc_search"
+    name: "完整测试博主"
     sync_comments: true
 
   # === 在下方添加更多博主 ===
