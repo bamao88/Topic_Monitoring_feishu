@@ -1,0 +1,40 @@
+# 对标博主列表配置
+#
+# 添加博主说明:
+#   1. 在小红书网页版 (www.xiaohongshu.com) 打开博主主页
+#   2. 复制完整URL（包含 xsec_token 和 xsec_source 参数）
+#   3. 添加到下方列表
+#
+# 配置项说明:
+#   url: 博主主页完整URL（必须包含 xsec_token）
+#   name: 博主昵称（方便识别，可随意填写）
+#   sync_comments: 是否同步评论（true/false）
+#
+# 获取URL方法:
+#   1. 打开小红书网页版 https://www.xiaohongshu.com
+#   2. 搜索并进入目标博主主页
+#   3. 复制浏览器地址栏中的完整URL
+#   4. URL示例: https://www.xiaohongshu.com/user/profile/xxx?xsec_token=xxx&xsec_source=pc_note
+
+bloggers:
+  # 测试博主
+  - url: "https://www.xiaohongshu.com/user/profile/5c77fdd70000000011019f74?xsec_token=ABXOGKTqOMf81ZVrKMbXNYDPuVFfj51JmF4T04sJ-UO30=&xsec_source=pc_search"
+    name: "测试博主"
+    sync_comments: true
+
+  # === 在下方添加更多博主 ===
+  #
+  # 示例配置 (取消注释并替换为真实URL):
+  #
+  # - url: "https://www.xiaohongshu.com/user/profile/USER_ID?xsec_token=TOKEN&xsec_source=pc_note"
+  #   name: "博主昵称A"
+  #   sync_comments: true
+  #
+  # - url: "https://www.xiaohongshu.com/user/profile/USER_ID?xsec_token=TOKEN&xsec_source=pc_note"
+  #   name: "博主昵称B"
+  #   sync_comments: false  # 不抓取评论（减少抓取时间）
+  #
+  # 注意事项:
+  #   1. xsec_token 有时效性，如抓取失败请重新获取URL
+  #   2. 建议每次添加1-3个博主，观察运行情况
+  #   3. 抓取间隔已内置，无需担心频率过高
