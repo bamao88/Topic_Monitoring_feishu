@@ -32,6 +32,7 @@ class NoteInfo(BaseModel):
     """笔记信息"""
     note_id: str = Field(..., description="笔记ID")
     blogger_id: str = Field(default="", description="博主ID")
+    blogger_nickname: str = Field(default="", description="博主昵称")
     title: str = Field(default="", description="标题")
     desc: str = Field(default="", description="正文内容")
     type: str = Field(default="normal", description="笔记类型: normal/video")
@@ -52,6 +53,7 @@ class NoteInfo(BaseModel):
         record = {
             "note_id": self.note_id,
             "blogger_id": self.blogger_id,
+            "blogger_nickname": self.blogger_nickname,
             "title": self.title,
             "desc": self.desc,
             "type": self.type,

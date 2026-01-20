@@ -137,9 +137,13 @@ async def sync_single_blogger(
         since_time=last_sync_at,  # 增量抓取：只获取上次同步后的新笔记
     )
 
-    # 3. 同步笔记
+    # 3. 同步笔记（填入博主昵称）
     if notes:
-        note_records = [n.to_feishu_record() for n in notes]
+        blogger_nickname = blogger_info.nickname if blogger_info else ""
+        note_records = []
+        for n in notes:
+            n.blogger_nickname = blogger_nickname  # 填入博主昵称
+            note_records.append(n.to_feishu_record())
         new_count = feishu_sync.sync_notes(note_records)
         stats["notes"] = new_count
         logger.info(f"笔记同步完成: 新增 {new_count} 条")

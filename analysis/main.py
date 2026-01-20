@@ -9,6 +9,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from utils.logger import logger
+from feishu import FeishuClient
 from .data_fetcher import AnalysisDataFetcher
 from .report_generator import BloggerReportGenerator
 from .analyzers import (
@@ -103,7 +104,29 @@ def analyze_blogger(blogger_id: str) -> Optional[Path]:
         evaluation=evaluation,
     )
 
-    logger.info(f"分析完成! 报告已保存至: {report_path}")
+    logger.info(f"分析报告已保存至: {report_path}")
+
+    # 上传报告到飞书云文档
+    logger.info("正在上传报告到飞书云文档...")
+    try:
+        feishu_client = FeishuClient()
+        markdown_content = report_path.read_text(encoding="utf-8")
+        blogger_name = data.blogger.nickname or blogger_id
+
+        doc_info = feishu_client.upload_analysis_report(
+            blogger_id=blogger_id,
+            blogger_name=blogger_name,
+            markdown_content=markdown_content,
+        )
+
+        if doc_info:
+            logger.info(f"报告已上传到飞书: {doc_info['url']}")
+        else:
+            logger.warning("上传报告到飞书失败")
+    except Exception as e:
+        logger.error(f"上传报告到飞书失败: {e}")
+
+    logger.info(f"分析完成!")
     return report_path
 
 
